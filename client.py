@@ -1,5 +1,7 @@
 import socket
 import threading
+import tkinter as tk
+from tkinter import simpledialog
 
 '''
 #using tkinter for GUI
@@ -113,7 +115,7 @@ def receive():
 def write():
     while True:
         message = f'{nickname}: {input("")}'
-        cleint.send(message.encode('ascii'))
+        client.send(message.encode('ascii'))
 
 receive_thread = threading.Thread(target=receive)
 receive_thread.start()
@@ -121,3 +123,52 @@ receive_thread.start()
 write_thread = threading.Thread(target=write)
 write_thread.start()
 
+class ChatClient:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+        self.root = tk.Tk()
+        self.root.title("Chat Client")
+
+        self.message_frame = tk.Frame(self.root)
+        self.message_frame.pack()
+
+        self.scrollbar = tk.Scrollbar(self.message_frame)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.message_list = tk.Listbox(self.message_frame, height=20, width=80, yscrollcommand=self.scrollbar.set)
+        self.message_list.pack(side=tk.LEFT, fill=tk.BOTH)
+        self.scrollbar.config(command=self.message_list.yview)
+
+        self.entry_field = tk.Entry(self.root)
+        self.entry_field.pack()
+        self.entry_field.bind("<Return>", self.send_message)
+
+        self.send_button = tk.Button(self.root, text="Send", command=self.send_message)
+        self.send_button.pack()
+
+        self.nickname = tk.simpledialog.askstring("Nickname", "Choose a nickname:", parent=self.root)
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect((self.host, self.port))
+        self.client_socket.send(self.nickname.encode('ascii'))
+
+        receive_thread = threading.Thread(target=self.receive)
+        receive_thread.start()
+
+        self.root.mainloop()
+
+    def receive(self):
+        while True:
+            try:
+                message = self.client_socket.recv(1024).decode('ascii')
+                self.message_list.insert(tk.END, message)
+            except:
+                print("An error occurred!")
+                self.client_socket.close()
+                break
+
+    def send_message(self, event=None):
+        message = self.entry_field.get()
+        self.entry_field.delete(0, tk.END)
+        self.client_socket.send(f"{self.nickname}: {message}".encode('ascii'))
