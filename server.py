@@ -1,61 +1,37 @@
-import threading
-import socket
+from socket import *
+from threading import *
 
+clients = set()
 
-#code for the server
-#localhost
-host = '127.0.0.1'
-#host = ''
-#
-#port = 55555
-port = 8000
-
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((host, port))
-server.listen()
-
-clients = []
-nicknames = []
-
-def broadcast(message):
-    for client in clients:
-        client.send(message)
-
-def handle(client):
+def clientThread(clientSocket, clientAddress):
     while True:
-        try:
-            message = client.recv(1024)
-            broadcast(message)
-        except:
-            index = clients.index(client)
-            clients.remove(client)
-            client.close()
-            nickname = nicknames[index]
-            broadcast(f'{nickname} left the chat'.encode('ascii'))
-            nicknames.remove(nickname)
+        message = clientSocket.recv(1024).decode("utf-8")
+        print(clientAddress[0] + ":" + str(clientAddress[1]) +" says: "+ message)
+        for client in clients:
+            if client is not clientSocket:
+                client.send((clientAddress[0] + ":" + str(clientAddress[1]) +" says: "+ message).encode("utf-8"))
+
+        if not message:
+            clients.remove(clientSocket)
+            print(clientAddress[0] + ":" + str(clientAddress[1]) +" disconnected")
             break
 
+    clientSocket.close()
+
+hostSocket = socket(AF_INET, SOCK_STREAM)
+hostSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR,1)
+
+hostIp = "127.0.0.1"
+portNumber = 7500
+hostSocket.bind((hostIp, portNumber))
+hostSocket.listen()
+print ("Connecting...")
 
 
-def receive():
-    while True:
-        client, address = server.accept()
-        print(f"Connected with {str(address)}")
-        #
-        client.send('NICK'.encode('ascii'))
-        nickname = client.recv(1024).decode('ascii')
-        nicknames.append(nickname)
-        clients.append(client)
-        print(f'Nickname of the client is {nickname}')
-        broadcast(f'{nickname} joined the chat'.encode('ascii'))
-        client.send('Connected to the server!'.encode('ascii'))
-
-        thread = threading.Thread(target=handle, args=(client,))
-        thread.start()
-
-print("server listening...")
-receive()
-
-
-
+while True:
+    clientSocket, clientAddress = hostSocket.accept()
+    clients.add(clientSocket)
+    print ("Connection established with: ", clientAddress[0] + ":" + str(clientAddress[1]))
+    thread = Thread(target=clientThread, args=(clientSocket, clientAddress, ))
+    thread.start()
 
